@@ -282,8 +282,43 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
         // To be Implemented this function right now just gives back a constant color depending on the mode
         
         if (compositingMode) {
-            // 1D transfer function 
-            voxel_color.r = 1;voxel_color.g =0;voxel_color.b =0;voxel_color.a =1;
+            // 1D transfer function
+
+            //compute the increment and the number of samples
+            double[] increments = new double[3];
+            VectorMath.setVector(increments, rayVector[0] * sampleStep, rayVector[1] * sampleStep, rayVector[2] * sampleStep);
+
+            // Compute the number of times we need to sample
+            double distance = VectorMath.distance(entryPoint, exitPoint);
+            int nrSamples = 1 + (int) Math.floor(VectorMath.distance(entryPoint, exitPoint) / sampleStep);
+
+            //the current position is initialized as the entry point
+            double[] currentPos = new double[3];
+            VectorMath.setVector(currentPos, entryPoint[0], entryPoint[1], entryPoint[2]);
+
+            double maximum = 0;
+            double compostingValue = 0;
+            double prevAlpha = 0.01;
+            do {
+                double value = volume.getVoxelLinearInterpolate(currentPos)/255.;
+
+                //update the compostingValue
+                if(compostingValue == 0){
+                    compostingValue = value * prevAlpha;
+                } else {
+                    compostingValue += (1 - prevAlpha) * value * prevAlpha;
+                }
+                for (int i = 0; i < 3; i++) {
+                    currentPos[i] += increments[i];
+                }
+                nrSamples--;
+            } while (nrSamples > 0 && compostingValue < 1);
+
+
+            //TODO if black make the voxel transparent
+
+            //assignment default code
+            voxel_color.r = compostingValue;voxel_color.g =compostingValue;voxel_color.b =compostingValue;voxel_color.a =1;
             opacity = 1;
         }    
         if (tf2dMode) {
