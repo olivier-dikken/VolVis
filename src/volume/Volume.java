@@ -117,21 +117,13 @@ public class Volume {
 
         float result = weight0*g0 + weight1*g1 + weight2*g2 + weight3*g3;
 
-        // Undershooting
-        if(result  < g0 && result  < g1 && result  < g2 && result  < g3){
-            return interpolate(g1, g2, factor);
+        //keep intensity values between bounds
+        if(result < 0){
+            return 0;//intensity min value
+        } else if (result > 254){
+            return 254;//intensity max value
         }
-        // Overshooting
-        else if(result  > g0 && result  > g1 && result  > g2 && result  > g3){
-            return interpolate(g1, g2, factor);
-            //return 0;
-        }
-        // Overshooting
-        /*else if (result  > g0 && result  > g1 && result  > g2 && result  > g3){
-            float max = Math.max(g0, g1);
-            max = Math.max(max, g2);
-            return Math.max(max, g3);
-        }*/
+
         return result;
     }
 
