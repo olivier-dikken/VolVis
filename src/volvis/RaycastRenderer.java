@@ -272,6 +272,30 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
        }
        return normValue * newAlpha + (1 - newAlpha) * compositeCalculation(nrSamples, currentPos, increments, newAlpha);
    }
+
+    //calculate compositing value
+    TFColor compositeCalculationRGB(int nrSamples, double[] currentPos, double[] increments){
+        TFColor voxel_color = new TFColor();
+        double value =  volume.getVoxelLinearInterpolate(currentPos);
+        int intValue = (int) value;
+        TFColor colorAux = tFunc.getColor(intValue);
+
+        for (int i = 0; i < 3; i++) {
+            currentPos[i] += increments[i];
+        }
+        nrSamples--;
+        if(nrSamples == 0 || colorAux.a > 0.99){
+            voxel_color.r = colorAux.r * colorAux.a;
+            voxel_color.b = colorAux.b * colorAux.a;
+            voxel_color.g = colorAux.g * colorAux.a;
+            return voxel_color;
+        }
+        TFColor nextVoxelColor = compositeCalculationRGB(nrSamples, currentPos, increments);
+        voxel_color.r = colorAux.r * colorAux.a + (1 - colorAux.a) * nextVoxelColor.r;
+        voxel_color.b = colorAux.b * colorAux.a + (1 - colorAux.a) * nextVoxelColor.b;
+        voxel_color.g = colorAux.g * colorAux.a + (1 - colorAux.a) * nextVoxelColor.g;
+        return voxel_color;
+    }
     
     //////////////////////////////////////////////////////////////////////
     ///////////////// FUNCTION TO BE IMPLEMENTED /////////////////////////
@@ -314,26 +338,12 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
             double[] currentPos = new double[3];
             VectorMath.setVector(currentPos, entryPoint[0], entryPoint[1], entryPoint[2]);
 
-            double compositingValue = compositeCalculation(nrSamples, currentPos, increments, 0);
-
-
-            double colorIntensity = compositingValue*255;
-            //keep colorIntensity within color bounds
-            if (colorIntensity < 0){
-                colorIntensity = 0;
-            } else if(colorIntensity > 254) {
-                colorIntensity = 254;
-            }
-            colorAux= tFunc.getColor((int) colorIntensity);
+            colorAux = compositeCalculationRGB(nrSamples, currentPos, increments);
 
             //assignment default code
-            voxel_color.r = colorAux.r; voxel_color.g = colorAux.g; voxel_color.b = colorAux.b; voxel_color.a = colorAux.a;
-            opacity = colorAux.a;
+            voxel_color.r = colorAux.r; voxel_color.g = colorAux.g; voxel_color.b = colorAux.b;
+            opacity = 1; //needs to be otherwise too transparent;
 
-            //make value 0 transparent
-            if(compositingValue <= 0.0){
-                opacity = 0.0;
-            }
         }    
         if (tf2dMode) {
              // 2D transfer function 
