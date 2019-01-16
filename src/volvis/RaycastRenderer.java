@@ -54,6 +54,8 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
     private float iso_value=95; 
     // This is a work around
     private float res_factor = 1.0f;
+    private float old_res_factor = res_factor;
+    private float low_res_factor = 3.0f;
     private float max_res_factor=0.25f;
     private TFColor isoColor; 
 
@@ -80,7 +82,8 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
 
         // The result of the visualization is saved in an image(texture)
         // we update the vector according to the resolution factor
-        // If the resolution is 0.25 we will sample 4 times more points. 
+        // If the resolution is 0.25 we will sample 4 times more points.
+        updateResolution();
         for(int k=0;k<3;k++)
         {
             uVec[k]=res_factor*uVec[k];
@@ -406,6 +409,17 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
         
         return color;
     }
+
+    //if interactive mode is on then lower the resolution
+    void updateResolution(){
+        if(interactiveMode){
+            if(res_factor <= 1.0f)
+                old_res_factor = res_factor;
+            res_factor = low_res_factor;
+        } else if (res_factor == low_res_factor){ //only change back resolution if it has not been done already - otherwise conflicts with changing resolution in GUI
+            res_factor = old_res_factor;
+        }
+    }
     
     
     //////////////////////////////////////////////////////////////////////
@@ -441,7 +455,8 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
         
         // The result of the visualization is saved in an image(texture)
         // we update the vector according to the resolution factor
-        // If the resolution is 0.25 we will sample 4 times more points. 
+        // If the resolution is 0.25 we will sample 4 times more points.
+        updateResolution();
         for(int k=0;k<3;k++)
         {
             uVec[k]=res_factor*uVec[k];
