@@ -214,28 +214,52 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
     //It returns the color assigned to a ray/pixel given it's starting point (entryPoint) and the direction of the ray(rayVector).
     // exitPoint is the last point.
     //ray must be sampled with a distance defined by the sampleStep
-   
-   int traceRayIso(double[] entryPoint, double[] exitPoint, double[] rayVector, double sampleStep) {
-       
-        double[] lightVector = new double[3];
+
+    int traceRayIso(double[] entryPoint, double[] exitPoint, double[] rayVector, double sampleStep) {
+
+        // double[] lightVector = new double[3];
         //We define the light vector as directed toward the view point (which is the source of the light)
         // another light vector would be possible
-         VectorMath.setVector(lightVector, rayVector[0], rayVector[1], rayVector[2]);
-       
+        // VectorMath.setVector(lightVector, rayVector[0], rayVector[1], rayVector[2]);
+
         // To be Implemented
-              
+
         //Initialization of the colors as floating point values
         double r, g, b;
         r = g = b = 0.0;
         double alpha = 0.0;
         double opacity = 0;
-        
-              
+
+
         // To be Implemented this function right now just gives back a constant color
-        
-        
-         // isoColor contains the isosurface color from the interface
-         r = isoColor.r;g = isoColor.g;b =isoColor.b;alpha =1.0;
+        //compute the increment and the number of samples
+        double[] increments = new double[3];
+        VectorMath.setVector(increments, rayVector[0] * sampleStep, rayVector[1] * sampleStep, rayVector[2] * sampleStep);
+
+        // Compute the number of times we need to sample
+        double distance = VectorMath.distance(entryPoint, exitPoint);
+        int nrSamples = 1 + (int) Math.floor(VectorMath.distance(entryPoint, exitPoint) / sampleStep);
+
+        //the current position is initialized as the entry point
+        double[] currentPos = new double[3];
+        VectorMath.setVector(currentPos, entryPoint[0], entryPoint[1], entryPoint[2]);
+
+        double isoThreshold;
+        do {
+            double value = volume.getVoxelLinearInterpolate(currentPos);
+            isoThreshold = value - iso_value;
+
+            if (isoThreshold >= 0) {
+                // isoColor contains the isosurface color from the interface
+                r = isoColor.r;g = isoColor.g;b =isoColor.b;alpha =1.0;
+                break;
+            }
+            for (int i = 0; i < 3; i++) {
+                currentPos[i] += increments[i];
+            }
+            nrSamples--;
+        } while (nrSamples > 0);
+
         //computes the color
         int color = computeImageColor(r,g,b,alpha);
         return color;
