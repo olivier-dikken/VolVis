@@ -54,6 +54,8 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
     private float iso_value=95; 
     // This is a work around
     private float res_factor = 1.0f;
+    private float old_res_factor = res_factor;
+    private float low_res_factor = 3.0f;
     private float max_res_factor=0.25f;
     private TFColor isoColor; 
 
@@ -411,9 +413,11 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
     //if interactive mode is on then lower the resolution
     void updateResolution(){
         if(interactiveMode){
-            res_factor = 3.0f;
-        } else {
-            res_factor = 1.0f;
+            if(res_factor <= 1.0f)
+                old_res_factor = res_factor;
+            res_factor = low_res_factor;
+        } else if (res_factor == low_res_factor){ //only change back resolution if it has not been done already - otherwise conflicts with changing resolution in GUI
+            res_factor = old_res_factor;
         }
     }
     
