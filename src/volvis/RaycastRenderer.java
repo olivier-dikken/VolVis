@@ -253,6 +253,49 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
 
            // to be implemented
    }
+
+    //calculate compositing value
+   double compositeCalculation(int nrSamples, double[] currentPos, double[] increments, double alpha){
+       double value =  volume.getVoxelLinearInterpolate(currentPos);
+       int intValue = (int) value;
+       double normValue = value/255.;
+       TFColor colorAux = tFunc.getColor(intValue);
+
+       //double newAlpha = alpha + (1 - alpha)*colorAux.a; //formula in slides but doesn't seem correct
+       double newAlpha = colorAux.a;
+       for (int i = 0; i < 3; i++) {
+           currentPos[i] += increments[i];
+       }
+       nrSamples--;
+       if(nrSamples == 0 || colorAux.a > 0.99){
+           return normValue * newAlpha;
+       }
+       return normValue * newAlpha + (1 - newAlpha) * compositeCalculation(nrSamples, currentPos, increments, newAlpha);
+   }
+
+    //calculate compositing value
+    TFColor compositeCalculationRGB(int nrSamples, double[] currentPos, double[] increments){
+        TFColor voxel_color = new TFColor();
+        double value =  volume.getVoxelLinearInterpolate(currentPos);
+        int intValue = (int) value;
+        TFColor colorAux = tFunc.getColor(intValue);
+
+        for (int i = 0; i < 3; i++) {
+            currentPos[i] += increments[i];
+        }
+        nrSamples--;
+        if(nrSamples == 0 || colorAux.a > 0.99){
+            voxel_color.r = colorAux.r * colorAux.a;
+            voxel_color.b = colorAux.b * colorAux.a;
+            voxel_color.g = colorAux.g * colorAux.a;
+            return voxel_color;
+        }
+        TFColor nextVoxelColor = compositeCalculationRGB(nrSamples, currentPos, increments);
+        voxel_color.r = colorAux.r * colorAux.a + (1 - colorAux.a) * nextVoxelColor.r;
+        voxel_color.b = colorAux.b * colorAux.a + (1 - colorAux.a) * nextVoxelColor.b;
+        voxel_color.g = colorAux.g * colorAux.a + (1 - colorAux.a) * nextVoxelColor.g;
+        return voxel_color;
+    }
     
     //////////////////////////////////////////////////////////////////////
     ///////////////// FUNCTION TO BE IMPLEMENTED /////////////////////////
@@ -275,16 +318,32 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
         double alpha = 0.0;
         double opacity = 0;
         
-        
         TFColor voxel_color = new TFColor();
         TFColor colorAux = new TFColor();
         
         // To be Implemented this function right now just gives back a constant color depending on the mode
         
         if (compositingMode) {
-            // 1D transfer function 
-            voxel_color.r = 1;voxel_color.g =0;voxel_color.b =0;voxel_color.a =1;
-            opacity = 1;
+            // 1D transfer function
+
+            //compute the increment and the number of samples
+            double[] increments = new double[3];
+            VectorMath.setVector(increments, rayVector[0] * sampleStep, rayVector[1] * sampleStep, rayVector[2] * sampleStep);
+
+            // Compute the number of times we need to sample
+            double distance = VectorMath.distance(entryPoint, exitPoint);
+            int nrSamples = 1 + (int) Math.floor(distance / sampleStep);
+
+            //the current position is initialized as the entry point
+            double[] currentPos = new double[3];
+            VectorMath.setVector(currentPos, entryPoint[0], entryPoint[1], entryPoint[2]);
+
+            colorAux = compositeCalculationRGB(nrSamples, currentPos, increments);
+
+            //assignment default code
+            voxel_color.r = colorAux.r; voxel_color.g = colorAux.g; voxel_color.b = colorAux.b;
+            opacity = 1; //needs to be otherwise too transparent;
+
         }    
         if (tf2dMode) {
              // 2D transfer function 
@@ -296,11 +355,13 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
             voxel_color.r = 1;voxel_color.g =0;voxel_color.b =1;voxel_color.a =1;
             opacity = 1;     
         }
-            
+
+
+
         r = voxel_color.r ;
         g = voxel_color.g ;
         b = voxel_color.b;
-        alpha = opacity ;
+        alpha = opacity;
             
         //computes the color
         int color = computeImageColor(r,g,b,alpha);
