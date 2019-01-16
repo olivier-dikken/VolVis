@@ -80,7 +80,8 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
 
         // The result of the visualization is saved in an image(texture)
         // we update the vector according to the resolution factor
-        // If the resolution is 0.25 we will sample 4 times more points. 
+        // If the resolution is 0.25 we will sample 4 times more points.
+        updateResolution();
         for(int k=0;k<3;k++)
         {
             uVec[k]=res_factor*uVec[k];
@@ -382,6 +383,15 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
         
         return color;
     }
+
+    //if interactive mode is on then lower the resolution
+    void updateResolution(){
+        if(interactiveMode){
+            res_factor = 3.0f;
+        } else {
+            res_factor = 1.0f;
+        }
+    }
     
     
     //////////////////////////////////////////////////////////////////////
@@ -417,7 +427,8 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
         
         // The result of the visualization is saved in an image(texture)
         // we update the vector according to the resolution factor
-        // If the resolution is 0.25 we will sample 4 times more points. 
+        // If the resolution is 0.25 we will sample 4 times more points.
+        updateResolution();
         for(int k=0;k<3;k++)
         {
             uVec[k]=res_factor*uVec[k];
