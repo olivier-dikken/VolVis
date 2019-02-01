@@ -220,10 +220,10 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
 
     int traceRayIso(double[] entryPoint, double[] exitPoint, double[] rayVector, double sampleStep) {
 
-        // double[] lightVector = new double[3];
+        double[] lightVector = new double[3];
         //We define the light vector as directed toward the view point (which is the source of the light)
         // another light vector would be possible
-        // VectorMath.setVector(lightVector, rayVector[0], rayVector[1], rayVector[2]);
+        VectorMath.setVector(lightVector, rayVector[0], rayVector[1], rayVector[2]);
 
         // To be Implemented
 
@@ -255,6 +255,15 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
             if (isoThreshold >= 0) {
                 // isoColor contains the isosurface color from the interface
                 r = isoColor.r;g = isoColor.g;b =isoColor.b;alpha =1.0;
+                if (shadingMode) {
+                    //compute phong shading
+                    TFColor currentColor = new TFColor(r, g, b, alpha);
+                    VoxelGradient voxGrad = gradients.getGradient(currentPos);
+                    TFColor phongColor = computePhongShading(currentColor, voxGrad, lightVector, rayVector);
+                    r = phongColor.r;
+                    g = phongColor.g;
+                    b = phongColor.b;
+                }
                 break;
             }
             for (int i = 0; i < 3; i++) {
@@ -378,9 +387,10 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
             opacity = 1;      
         }
         if (shadingMode) {
+//TODO implement
             // Shading mode on
             voxel_color.r = 1;voxel_color.g =0;voxel_color.b =1;voxel_color.a =1;
-            opacity = 1;     
+            opacity = 1;
         }
 
 
@@ -402,12 +412,62 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
     TFColor computePhongShading(TFColor voxel_color, VoxelGradient gradient, double[] lightVector,
             double[] rayVector) {
 
-        // To be implemented 
+        double ka = 0.1;
+        double kd = 0.7;
+        double ks = 0.2;
+        double a = 100;
+
+        double[] gradientCoords = {gradient.x, gradient.y, gradient.z};
+
+//        double[] specularCoords = {gradient.x, gradient.y, gradient.z};
+        double[] specularCoords = {rayVector[0], rayVector[1], rayVector[2]};
+
+        //get angle between lightvector and gradient
+        double cosTheta = VectorMath.dotproduct(lightVector, gradientCoords)/ (VectorMath.length(lightVector) * VectorMath.length(gradientCoords) );
+        double cosPhi = VectorMath.dotproduct(lightVector, specularCoords)/ (VectorMath.length(lightVector) * VectorMath.length(specularCoords) );
+
+        if(cosTheta < 0) {
+            cosTheta = 0;
+        }
+        if(cosPhi < 0) {
+            cosPhi = 0;
+        }
+        double cosPhiPowA = Math.pow(cosPhi, a);
+
+        TFColor lightColor = new TFColor(1, 1, 1, 1);
+
+        double ambientColorR = lightColor.r*ka*voxel_color.r;
+        double ambientColorB = lightColor.b*ka*voxel_color.b;
+        double ambientColorG = lightColor.g*ka*voxel_color.g;
+
+        double diffuseColorR = lightColor.r*kd*voxel_color.r*cosTheta;
+        double diffuseColorB = lightColor.b*kd*voxel_color.b*cosTheta;
+        double diffuseColorG = lightColor.g*kd*voxel_color.g*cosTheta;
+
+        double specularColorR = lightColor.r*ks*voxel_color.r*cosPhiPowA;
+        double specularColorB = lightColor.b*ks*voxel_color.b*cosPhiPowA;
+        double specularColorG = lightColor.g*ks*voxel_color.g*cosPhiPowA;
+
+
+
+//        double newColorR = ambientColorR + diffuseColorR;
+//        double newColorG = ambientColorG + diffuseColorG;
+//        double newColorB = ambientColorB + diffuseColorB;
+
+        double newColorR = ambientColorR + diffuseColorR + specularColorR;
+        double newColorG = ambientColorG + diffuseColorG + specularColorG;
+        double newColorB = ambientColorB + diffuseColorB + specularColorB;
+
+        if(newColorR + newColorB + newColorG == 0){
+            System.out.println("Black pixel debugging: ");
+            System.out.println(cosTheta);
+            System.out.println(gradientCoords);
+            System.out.println(lightVector);
+        }
+
+        TFColor resultColor = new TFColor(newColorR,newColorG,newColorB,1);
         
-        TFColor color = new TFColor(0,0,0,1);
-        
-        
-        return color;
+        return resultColor;
     }
 
     //if interactive mode is on then lower the resolution
