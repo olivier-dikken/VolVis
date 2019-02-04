@@ -63,10 +63,10 @@ public class GradientVolume {
 	private void interpolate(VoxelGradient g0, VoxelGradient g1, float factor, VoxelGradient result) {
             
             // to be implemented
-            
-        result.x = 1;
-        result.y = 1;
-        result.z = 1;
+
+        result.x = g1.x*factor+g0.x*(1-factor);
+        result.y = g1.y*factor+g0.y*(1-factor);
+        result.z = g1.z*factor+g0.z*(1-factor);
         result.mag = (float) Math.sqrt(result.x * result.x + result.y * result.y + result.z * result.z);
     }
 	
@@ -77,8 +77,8 @@ public class GradientVolume {
 // right now it returns the nearest neighbour        
         
     public VoxelGradient getGradient(double[] coord) {
-        if (coord[0] < 0 || coord[0] > (dimX-2) || coord[1] < 0 || coord[1] > (dimY-2)
-                || coord[2] < 0 || coord[2] > (dimZ-2)) {
+        if (coord[0] < 1 || coord[0] > (dimX-2) || coord[1] < 1 || coord[1] > (dimY-2)
+                || coord[2] < 1 || coord[2] > (dimZ-2)) {
             return zero;
         }
 
