@@ -402,13 +402,10 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
 
         }    
         if (tf2dMode) {
-             // 2D transfer function
-            //VoxelGradient gradient =  gradients.getGradient(currentPos);
-           // opacity = computeOpacity2DTF(1,1, volume.getVoxelLinearInterpolate(currentPos), gradient.mag);
+            // 2D transfer function
             colorAux = compositeCalculationRGB(nrSamples, currentPos, increments, false);
-            voxel_color.r = colorAux.r; voxel_color.g = colorAux.g; voxel_color.b = colorAux.b;
+            voxel_color.r = colorAux.r*tFunc2D.color.r; voxel_color.g = colorAux.g*tFunc2D.color.g; voxel_color.b = colorAux.b*tFunc2D.color.b;
             opacity = colorAux.a;
-
         }
         if (shadingMode) {
             // Shading mode on
