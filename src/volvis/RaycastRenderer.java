@@ -342,30 +342,6 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
        }
        return normValue * newAlpha + (1 - newAlpha) * compositeCalculation(nrSamples, currentPos, increments, newAlpha);
    }
-
-    //calculate compositing value
-    TFColor compositeCalculationRGB(int nrSamples, double[] currentPos, double[] increments){
-        TFColor voxel_color = new TFColor();
-        double value =  volume.getVoxelLinearInterpolate(currentPos);
-        int intValue = (int) value;
-        TFColor colorAux = tFunc.getColor(intValue);
-
-        for (int i = 0; i < 3; i++) {
-            currentPos[i] += increments[i];
-        }
-        nrSamples--;
-        if(nrSamples == 0 || colorAux.a > 0.99){
-            voxel_color.r = colorAux.r * colorAux.a;
-            voxel_color.b = colorAux.b * colorAux.a;
-            voxel_color.g = colorAux.g * colorAux.a;
-            return voxel_color;
-        }
-        TFColor nextVoxelColor = compositeCalculationRGB(nrSamples, currentPos, increments);
-        voxel_color.r = colorAux.r * colorAux.a + (1 - colorAux.a) * nextVoxelColor.r;
-        voxel_color.b = colorAux.b * colorAux.a + (1 - colorAux.a) * nextVoxelColor.b;
-        voxel_color.g = colorAux.g * colorAux.a + (1 - colorAux.a) * nextVoxelColor.g;
-        return voxel_color;
-    }
     
     //////////////////////////////////////////////////////////////////////
     ///////////////// FUNCTION TO BE IMPLEMENTED /////////////////////////
@@ -390,9 +366,14 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
         
         TFColor voxel_color = new TFColor();
         TFColor colorAux = new TFColor();
+
+        //compute phong shading
+        boolean shade = false;
         
         // To be Implemented this function right now just gives back a constant color depending on the mode
-        
+        if (shadingMode) {
+            shade = true;
+        }
         if (compositingMode) {
             // 1D transfer function
 
@@ -408,7 +389,7 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
             double[] currentPos = new double[3];
             VectorMath.setVector(currentPos, entryPoint[0], entryPoint[1], entryPoint[2]);
 
-            colorAux = compositeCalculationRGB(nrSamples, currentPos, increments);
+            colorAux = compositeCalculationRGB(nrSamples, currentPos, increments, lightVector, rayVector, shade);
 
             //assignment default code
             voxel_color.r = colorAux.r; voxel_color.g = colorAux.g; voxel_color.b = colorAux.b;
@@ -419,12 +400,6 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
              // 2D transfer function 
             voxel_color.r = 0;voxel_color.g =1;voxel_color.b =0;voxel_color.a =1;
             opacity = 1;      
-        }
-        if (shadingMode) {
-//TODO implement
-            // Shading mode on
-            voxel_color.r = 1;voxel_color.g =0;voxel_color.b =1;voxel_color.a =1;
-            opacity = 1;
         }
 
 
@@ -438,6 +413,36 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
         int color = computeImageColor(r,g,b,alpha);
         return color;
     }
+
+
+    //calculate compositing value
+    TFColor compositeCalculationRGB(int nrSamples, double[] currentPos, double[] increments, double[] lightVector, double[] rayVector, boolean shade){
+        TFColor voxel_color = new TFColor();
+        double value =  volume.getVoxelLinearInterpolate(currentPos);
+        int intValue = (int) value;
+        TFColor colorAux = tFunc.getColor(intValue);
+        VoxelGradient voxGrad = gradients.getGradient(currentPos);
+
+        //if phong shading is active then compute phong shaded color value
+        if(shade)
+            colorAux = computePhongShading(colorAux, voxGrad, lightVector, rayVector);
+
+        for (int i = 0; i < 3; i++) {
+            currentPos[i] += increments[i];
+        }
+        nrSamples--;
+        if(nrSamples == 0 || colorAux.a > 0.99){
+            voxel_color.r = colorAux.r * colorAux.a;
+            voxel_color.b = colorAux.b * colorAux.a;
+            voxel_color.g = colorAux.g * colorAux.a;
+            return voxel_color;
+        }
+        TFColor nextVoxelColor = compositeCalculationRGB(nrSamples, currentPos, increments, lightVector, rayVector, shade);
+        voxel_color.r = colorAux.r * colorAux.a + (1 - colorAux.a) * nextVoxelColor.r;
+        voxel_color.b = colorAux.b * colorAux.a + (1 - colorAux.a) * nextVoxelColor.b;
+        voxel_color.g = colorAux.g * colorAux.a + (1 - colorAux.a) * nextVoxelColor.g;
+        return voxel_color;
+    }
     
     //////////////////////////////////////////////////////////////////////
     ///////////////// FUNCTION TO BE IMPLEMENTED /////////////////////////
@@ -446,13 +451,15 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
     TFColor computePhongShading(TFColor voxel_color, VoxelGradient gradient, double[] lightVector,
             double[] rayVector) {
 
+        if(gradient.mag == 0){
+            return new TFColor(0, 0, 0, 0);
+        }
+
         float ka = 0.1f;
         float kd = 0.7f;
         float ks = 0.2f;
         float a = 100;
 
-
-        //NEW version from WIKI
 
         //intensity = ka*ia + kd*(L^ dot N^ )*id + ks*(r^ dot v^)^a*is;
         float ir =  (float) voxel_color.r;
@@ -482,7 +489,7 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
 
         //check if normal is in correct direction
         if(Math.toDegrees(VectorUtil.angleVec3(toLight, normal)) >= 90){
-            return new TFColor(r_ambient,g_ambient,b_ambient,1);
+            return new TFColor(r_ambient,g_ambient,b_ambient,voxel_color.a);
         }
 
         float r_diffuse = kd * VectorUtil.dotVec3(toLightN, normalN) * ir;
@@ -499,10 +506,9 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
         double newColorG = g_ambient + g_diffuse + g_specular;
         double newColorB = b_ambient + b_diffuse + b_specular;
 
-        TFColor resultColor = new TFColor(newColorR,newColorG,newColorB,1);
+        TFColor resultColor = new TFColor(newColorR,newColorG,newColorB,voxel_color.a);
 
         return resultColor;
-        //END new vistion from WIKI
     }
 
     //if interactive mode is on then lower the resolution
