@@ -77,6 +77,11 @@ public class GradientVolume {
 // right now it returns the nearest neighbour        
         
     public VoxelGradient getGradient(double[] coord) {
+        if (coord[0] < 0 || coord[0] > (dimX-2) || coord[1] < 0 || coord[1] > (dimY-2)
+                || coord[2] < 0 || coord[2] > (dimZ-2)) {
+            return zero;
+        }
+
         int x = (int) Math.round(coord[0]);
         int y = (int) Math.round(coord[1]);
         int z = (int) Math.round(coord[2]);
