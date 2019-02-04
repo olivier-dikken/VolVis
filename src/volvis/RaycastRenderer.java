@@ -191,7 +191,7 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
         double maximum = 0;
         do {
             double value = volume.getVoxelLinearInterpolate(currentPos)/255.; 
-            if (value > maximum) {
+            if (value > maximum) {// stove max value
                 maximum = value;
             }
             for (int i = 0; i < 3; i++) {
@@ -234,7 +234,6 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
         double r, g, b;
         r = g = b = 0.0;
         double alpha = 0.0;
-        double opacity = 0;
 
 
         // To be Implemented this function right now just gives back a constant color
@@ -304,7 +303,7 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
 
        //once the step is small enough, return the found position
        if(increments[0] < minSampleStep){
-           //return value
+           //return position
            return currentPos;
        }
 
@@ -320,26 +319,8 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
        if(value < iso_value){
            return bisection_accuracy(maxPos, increments, minSampleStep, value, iso_value);
        }
-       //should reach this line
+       //should not be possible to reach this line
        return currentPos;
-   }
-
-    //calculate compositing value
-   double compositeCalculation(int nrSamples, double[] currentPos, double[] increments, double alpha){
-       double value =  volume.getVoxelLinearInterpolate(currentPos);
-       int intValue = (int) value;
-       double normValue = value/255.;
-       TFColor colorAux = tFunc.getColor(intValue);
-       //double newAlpha = alpha + (1 - alpha)*colorAux.a; //formula in slides but doesn't seem correct
-       double newAlpha = colorAux.a;
-       for (int i = 0; i < 3; i++) {
-           currentPos[i] += increments[i];
-       }
-       nrSamples--;
-       if(nrSamples == 0 || colorAux.a > 0.99){
-           return normValue * newAlpha;
-       }
-       return normValue * newAlpha + (1 - newAlpha) * compositeCalculation(nrSamples, currentPos, increments, newAlpha);
    }
 
     
@@ -388,6 +369,7 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
         VectorMath.setVector(currentPos, entryPoint[0], entryPoint[1], entryPoint[2]);
         if (compositingMode) {
             // 1D transfer function
+            //recursive function to take care of compositing ccomputation
             colorAux = compositeCalculationRGB(nrSamples, currentPos, increments, lightVector, rayVector, shade, false);
             //assignment default code
             voxel_color.r = colorAux.r; voxel_color.g = colorAux.g; voxel_color.b = colorAux.b;
@@ -395,6 +377,7 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
         }
         if (tf2dMode) {
             // 2D transfer function
+            //recursive function to take care of compositing ccomputation
             colorAux = compositeCalculationRGB(nrSamples, currentPos, increments, lightVector, rayVector, shade, true);
             voxel_color.r = colorAux.r*tFunc2D.color.r; voxel_color.g = colorAux.g*tFunc2D.color.g; voxel_color.b = colorAux.b*tFunc2D.color.b;
             opacity = colorAux.a;
@@ -416,8 +399,9 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
         TFColor voxel_color = new TFColor();
         double value =  volume.getVoxelLinearInterpolate(currentPos);
         int intValue = (int) value;
+        // get transfer function value at current position
         TFColor colorAux = tFunc.getColor(intValue);
-        if(twoD){
+        if(twoD){//compute opacity with 2d transfer function
             colorAux.a = computeOpacity2DTF(1, 1, intValue, gradients.getGradient(currentPos).mag);
         }
         VoxelGradient voxGrad = gradients.getGradient(currentPos);
@@ -426,17 +410,23 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
         if(shade)
             colorAux = computePhongShading(colorAux, voxGrad, lightVector, rayVector);
 
+        //move forwards along the ray
         for (int i = 0; i < 3; i++) {
             currentPos[i] += increments[i];
         }
         nrSamples--;
+
+        //when at the end of the samples or 'more or less nat full opacity level'
         if(nrSamples == 0 || colorAux.a > 0.99){
             voxel_color.r = colorAux.r * colorAux.a;
             voxel_color.b = colorAux.b * colorAux.a;
             voxel_color.g = colorAux.g * colorAux.a;
+            //lowest level return
             return voxel_color;
         }
+        //recursive call
         TFColor nextVoxelColor = compositeCalculationRGB(nrSamples, currentPos, increments, lightVector, rayVector, shade, twoD);
+        //the compositing formula
         voxel_color.r = colorAux.r * colorAux.a + (1 - colorAux.a) * nextVoxelColor.r;
         voxel_color.b = colorAux.b * colorAux.a + (1 - colorAux.a) * nextVoxelColor.b;
         voxel_color.g = colorAux.g * colorAux.a + (1 - colorAux.a) * nextVoxelColor.g;
@@ -450,21 +440,27 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
     TFColor computePhongShading(TFColor voxel_color, VoxelGradient gradient, double[] lightVector,
             double[] rayVector) {
 
+        //if no gradient magnitude return transparent - a 'reflective surface' will always have a not-null gradient magnitude
         if(gradient.mag == 0){
             return new TFColor(0, 0, 0, 0);
         }
 
-        float ka = 0.1f;
-        float kd = 0.7f;
-        float ks = 0.2f;
+        //reflectiveness constants
+        float ka = 0.1f;//ambient
+        float kd = 0.7f;//diffuse
+        float ks = 0.2f;//specular
         float a = 100;
 
 
+        //formula implemented:
         //intensity = ka*ia + kd*(L^ dot N^ )*id + ks*(r^ dot v^)^a*is;
+
+        //set the colors; compute the 3 bands separately
         float ir =  (float) voxel_color.r;
         float ig = (float) voxel_color.g;
         float ib = (float) voxel_color.b;
 
+        //setup the necessary variables
         float[] toLight = {(float) -lightVector[0], (float) -lightVector[1], (float) -lightVector[2]};
         float[] toLightN = VectorUtil.normalizeVec3(toLight);
 
@@ -479,38 +475,45 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
         float[] scaled = new float[3];
         float dotp = VectorUtil.dotVec3(toLightN, normalN);
         VectorUtil.scaleVec3(scaled, normalN, 2*dotp);
+        // rN is the the direction taken by a perfect reflection of the light source on the surface
         float[] rN = new float[3];
         VectorUtil.subVec3(rN, scaled, toLightN);
 
+        //store ambient color
         float r_ambient = ka * ir;
         float g_ambient = ka * ig;
         float b_ambient = ka * ib;
 
-        //check if normal is in correct direction
+        //check if normal is in correct direction, if light is orthogonal(or larger angle) to the surface only use ambient lighting
         if(Math.toDegrees(VectorUtil.angleVec3(toLight, normal)) >= 90){
             return new TFColor(r_ambient,g_ambient,b_ambient,voxel_color.a);
         }
 
+        //store diffuse color
         float r_diffuse = kd * VectorUtil.dotVec3(toLightN, normalN) * ir;
         float g_diffuse = kd * VectorUtil.dotVec3(toLightN, normalN) * ig;
         float b_diffuse = kd * VectorUtil.dotVec3(toLightN, normalN) * ib;
 
+        //final step in computing the specular light reflection
         float specPow =  (float) Math.pow(VectorUtil.dotVec3(rN, toViewN), a);
+        //store specular color
         float r_specular = ks * specPow * ir;
         float g_specular = ks * specPow * ig;
         float b_specular = ks * specPow * ib;
 
-
+        //store the final color
         double newColorR = r_ambient + r_diffuse + r_specular;
         double newColorG = g_ambient + g_diffuse + g_specular;
         double newColorB = b_ambient + b_diffuse + b_specular;
 
+        //keep transparency of color passed as argument
         TFColor resultColor = new TFColor(newColorR,newColorG,newColorB,voxel_color.a);
 
         return resultColor;
     }
 
-    //if interactive mode is on then lower the resolution
+    //if interactive mode is on then lower the resolution for speed purposes
+    //
     void updateResolution(){
         if(interactiveMode){
             if(res_factor <= 1.0f)

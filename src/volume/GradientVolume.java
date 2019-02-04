@@ -78,25 +78,7 @@ public class GradientVolume {
 // right now it returns the nearest neighbour        
         
     public VoxelGradient getGradient(double[] coord) {
-        /*if (coord[0] < 1 || coord[0] > (dimX-2) || coord[1] < 1 || coord[1] > (dimY-2)
-                || coord[2] < 1 || coord[2] > (dimZ-2)) {
-            return zero;
-        }
-
-        int x = (int) Math.round(coord[0]);
-        int y = (int) Math.round(coord[1]);
-        int z = (int) Math.round(coord[2]);
-
-        float gx = (volume.getVoxel(x+1, y, z) - volume.getVoxel(x-1, y, z))/2.0f;
-        float gy = (volume.getVoxel(x, y+1, z) - volume.getVoxel(x, y-1, z))/2.0f;
-        float gz = (volume.getVoxel(x, y, z+1) - volume.getVoxel(x, y, z-1))/2.0f;
-        VoxelGradient voxGrad = new VoxelGradient();
-        voxGrad.x = gx;
-        voxGrad.y = gy;
-        voxGrad.z = gz;
-        double[] magVect = {(double) gx, (double) gy, (double) gz};
-        voxGrad.mag = (float) VectorMath.length(magVect);
-        return voxGrad;*/
+        //make sure not on edges
         if (coord[0] < 0 || coord[0] > (dimX-2) || coord[1] < 0 || coord[1] > (dimY-2)
                 || coord[2] < 0 || coord[2] > (dimZ-2)) {
             return zero;
