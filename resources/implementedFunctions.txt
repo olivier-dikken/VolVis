@@ -1,0 +1,13 @@
+VolVis Group 3 - Implemented function list
+
+Cubicinterpolate
+Bicubicinterpolate
+getVoxelTriCubicInterpolate
+getGradient
+traceRayComposite
+traceRayIso
+Bisection_accuracy
+computePhongShading
+computeOpacity2DTF
+compositeCalculationRGB
+updateResolution
