@@ -65,8 +65,6 @@ public class GradientVolume {
     
 	private void interpolate(VoxelGradient g0, VoxelGradient g1, float factor, VoxelGradient result) {
             
-            // to be implemented
-
         result.x = g1.x*factor+g0.x*(1-factor);
         result.y = g1.y*factor+g0.y*(1-factor);
         result.z = g1.z*factor+g0.z*(1-factor);
@@ -80,7 +78,7 @@ public class GradientVolume {
 // right now it returns the nearest neighbour        
         
     public VoxelGradient getGradient(double[] coord) {
-        if (coord[0] < 1 || coord[0] > (dimX-2) || coord[1] < 1 || coord[1] > (dimY-2)
+        /*if (coord[0] < 1 || coord[0] > (dimX-2) || coord[1] < 1 || coord[1] > (dimY-2)
                 || coord[2] < 1 || coord[2] > (dimZ-2)) {
             return zero;
         }
@@ -98,7 +96,32 @@ public class GradientVolume {
         voxGrad.z = gz;
         double[] magVect = {(double) gx, (double) gy, (double) gz};
         voxGrad.mag = (float) VectorMath.length(magVect);
-        return voxGrad;
+        return voxGrad;*/
+        if (coord[0] < 0 || coord[0] > (dimX-2) || coord[1] < 0 || coord[1] > (dimY-2)
+                || coord[2] < 0 || coord[2] > (dimZ-2)) {
+            return zero;
+        }
+        /* notice that in this framework we assume that the distance between neighbouring voxels is 1 in all directions*/
+        int x = (int) Math.floor(coord[0]);
+        int y = (int) Math.floor(coord[1]);
+        int z = (int) Math.floor(coord[2]);
+
+        float fac_x = (float) coord[0] - x;
+        float fac_y = (float) coord[1] - y;
+        float fac_z = (float) coord[2] - z;
+
+        VoxelGradient r0,r1,r2,r3,r4,r5,r6;
+        r0=r1=r2=r3=r4=r5=r6= new VoxelGradient();
+
+        interpolate(getGradient(x, y, z), getGradient(x+1, y, z), fac_x, r0);
+        interpolate(getGradient(x, y+1, z), getGradient(x+1, y+1, z), fac_x, r1);
+        interpolate(getGradient(x, y, z+1), getGradient(x+1, y, z+1), fac_x, r2);
+        interpolate(getGradient(x, y+1, z+1), getGradient(x+1, y+1, z+1), fac_x, r3);
+        interpolate(r0, r1, fac_y, r4);
+        interpolate(r2, r3, fac_y, r5);
+        interpolate(r4, r5, fac_z, r6);
+
+        return r6;
     }
     
     

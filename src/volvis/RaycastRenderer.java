@@ -330,7 +330,6 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
        int intValue = (int) value;
        double normValue = value/255.;
        TFColor colorAux = tFunc.getColor(intValue);
-
        //double newAlpha = alpha + (1 - alpha)*colorAux.a; //formula in slides but doesn't seem correct
        double newAlpha = colorAux.a;
        for (int i = 0; i < 3; i++) {
@@ -342,6 +341,7 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
        }
        return normValue * newAlpha + (1 - newAlpha) * compositeCalculation(nrSamples, currentPos, increments, newAlpha);
    }
+
     
     //////////////////////////////////////////////////////////////////////
     ///////////////// FUNCTION TO BE IMPLEMENTED /////////////////////////
@@ -374,35 +374,31 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
         if (shadingMode) {
             shade = true;
         }
+
+        //compute the increment and the number of samples
+        double[] increments = new double[3];
+        VectorMath.setVector(increments, rayVector[0] * sampleStep, rayVector[1] * sampleStep, rayVector[2] * sampleStep);
+
+        // Compute the number of times we need to sample
+        double distance = VectorMath.distance(entryPoint, exitPoint);
+        int nrSamples = 1 + (int) Math.floor(distance / sampleStep);
+
+        //the current position is initialized as the entry point
+        double[] currentPos = new double[3];
+        VectorMath.setVector(currentPos, entryPoint[0], entryPoint[1], entryPoint[2]);
         if (compositingMode) {
             // 1D transfer function
-
-            //compute the increment and the number of samples
-            double[] increments = new double[3];
-            VectorMath.setVector(increments, rayVector[0] * sampleStep, rayVector[1] * sampleStep, rayVector[2] * sampleStep);
-
-            // Compute the number of times we need to sample
-            double distance = VectorMath.distance(entryPoint, exitPoint);
-            int nrSamples = 1 + (int) Math.floor(distance / sampleStep);
-
-            //the current position is initialized as the entry point
-            double[] currentPos = new double[3];
-            VectorMath.setVector(currentPos, entryPoint[0], entryPoint[1], entryPoint[2]);
-
-            colorAux = compositeCalculationRGB(nrSamples, currentPos, increments, lightVector, rayVector, shade);
-
+            colorAux = compositeCalculationRGB(nrSamples, currentPos, increments, lightVector, rayVector, shade, false);
             //assignment default code
             voxel_color.r = colorAux.r; voxel_color.g = colorAux.g; voxel_color.b = colorAux.b;
             opacity = 1; //needs to be otherwise too transparent;
-
-        }    
-        if (tf2dMode) {
-             // 2D transfer function 
-            voxel_color.r = 0;voxel_color.g =1;voxel_color.b =0;voxel_color.a =1;
-            opacity = 1;      
         }
-
-
+        if (tf2dMode) {
+            // 2D transfer function
+            colorAux = compositeCalculationRGB(nrSamples, currentPos, increments, lightVector, rayVector, shade, true);
+            voxel_color.r = colorAux.r*tFunc2D.color.r; voxel_color.g = colorAux.g*tFunc2D.color.g; voxel_color.b = colorAux.b*tFunc2D.color.b;
+            opacity = colorAux.a;
+        }
 
         r = voxel_color.r ;
         g = voxel_color.g ;
@@ -416,11 +412,14 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
 
 
     //calculate compositing value
-    TFColor compositeCalculationRGB(int nrSamples, double[] currentPos, double[] increments, double[] lightVector, double[] rayVector, boolean shade){
+    TFColor compositeCalculationRGB(int nrSamples, double[] currentPos, double[] increments, double[] lightVector, double[] rayVector, boolean shade, boolean twoD){
         TFColor voxel_color = new TFColor();
         double value =  volume.getVoxelLinearInterpolate(currentPos);
         int intValue = (int) value;
         TFColor colorAux = tFunc.getColor(intValue);
+        if(twoD){
+            colorAux.a = computeOpacity2DTF(1, 1, intValue, gradients.getGradient(currentPos).mag);
+        }
         VoxelGradient voxGrad = gradients.getGradient(currentPos);
 
         //if phong shading is active then compute phong shaded color value
@@ -437,7 +436,7 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
             voxel_color.g = colorAux.g * colorAux.a;
             return voxel_color;
         }
-        TFColor nextVoxelColor = compositeCalculationRGB(nrSamples, currentPos, increments, lightVector, rayVector, shade);
+        TFColor nextVoxelColor = compositeCalculationRGB(nrSamples, currentPos, increments, lightVector, rayVector, shade, twoD);
         voxel_color.r = colorAux.r * colorAux.a + (1 - colorAux.a) * nextVoxelColor.r;
         voxel_color.b = colorAux.b * colorAux.a + (1 - colorAux.a) * nextVoxelColor.b;
         voxel_color.g = colorAux.g * colorAux.a + (1 - colorAux.a) * nextVoxelColor.g;
@@ -626,10 +625,31 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
 public double computeOpacity2DTF(double material_value, double material_r,
         double voxelValue, double gradMagnitude) {
 
-    double opacity = 0.0;
+    double opacity = 0;
+    double max = gradients.getMaxGradientMagnitude();
+    double baseIntensity = tFunc2D.baseIntensity;
+    double radius = tFunc2D.radius;
 
-    // to be implemented
-    
+    double slope = max / radius;
+    double bias = baseIntensity*slope;
+
+    // First line has negative slope
+    double sumLeftLine = (voxelValue*slope) + gradMagnitude;
+    // Second line has positive slope.
+    double sumRightLine = (voxelValue*slope) - gradMagnitude;
+    if(sumLeftLine >= bias && sumRightLine  <= bias){
+        // We are in the triangle
+        // Distance based from midpoint
+        double distanceX = Math.abs(voxelValue - baseIntensity);
+        double distanceY = Math.abs(gradMagnitude - (max / 2));
+        double distance = Math.sqrt((distanceX*distanceX) + (distanceY*distanceY));
+
+        double distanceXMax = radius;
+        double distanceYMax = max / 2;
+        double distanceMax = Math.sqrt((distanceXMax*distanceXMax) + (distanceYMax*distanceYMax));
+        // tfunc2d.color.a is the max opacity value possible
+        opacity = Math.max(0, tFunc2D.color.a - (distance / distanceMax));
+    }
     return opacity;
 }  
 
