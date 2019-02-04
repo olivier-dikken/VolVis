@@ -59,14 +59,14 @@ public class GradientVolume {
 //////////////////////////////////////////////////////////////////////
 //This function linearly interpolates gradient vector g0 and g1 given the factor (t) 
 //the resut is given at result. You can use it to tri-linearly interpolate the gradient 
-
-    private void interpolate(VoxelGradient g0, VoxelGradient g1, float factor, VoxelGradient result) {
-
-        // to be implemented
-
-        result.x = g1.x*factor+g0.x*(1-factor);
-        result.y = g1.y*factor+g0.y*(1-factor);
-        result.z = g1.z*factor+g0.z*(1-factor);
+    
+	private void interpolate(VoxelGradient g0, VoxelGradient g1, float factor, VoxelGradient result) {
+            
+            // to be implemented
+            
+        result.x = 1;
+        result.y = 1;
+        result.z = 1;
         result.mag = (float) Math.sqrt(result.x * result.x + result.y * result.y + result.z * result.z);
     }
 	
@@ -77,11 +77,23 @@ public class GradientVolume {
 // right now it returns the nearest neighbour        
         
     public VoxelGradient getGradient(double[] coord) {
-        
-        // to be implemented
+        if (coord[0] < 0 || coord[0] > (dimX-2) || coord[1] < 0 || coord[1] > (dimY-2)
+                || coord[2] < 0 || coord[2] > (dimZ-2)) {
+            return zero;
+        }
 
-        return getGradientNN(coord);
+        int x = (int) Math.round(coord[0]);
+        int y = (int) Math.round(coord[1]);
+        int z = (int) Math.round(coord[2]);
 
+        float gx = (volume.getVoxel(x+1, y, z) - volume.getVoxel(x-1, y, z))/2.0f;
+        float gy = (volume.getVoxel(x, y+1, z) - volume.getVoxel(x, y-1, z))/2.0f;
+        float gz = (volume.getVoxel(x, y, z+1) - volume.getVoxel(x, y, z-1))/2.0f;
+        VoxelGradient voxGrad = new VoxelGradient();
+        voxGrad.x = gx;
+        voxGrad.y = gy;
+        voxGrad.z = gz;
+        return voxGrad;
     }
     
     

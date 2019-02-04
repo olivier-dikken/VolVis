@@ -4,6 +4,7 @@ package volvis;
 
 import com.jogamp.opengl.GL;
 import com.jogamp.opengl.GL2;
+import com.jogamp.opengl.math.VectorUtil;
 import com.jogamp.opengl.util.texture.Texture;
 import com.jogamp.opengl.util.texture.awt.AWTTextureIO;
 import gui.RaycastRendererPanel;
@@ -15,8 +16,10 @@ import util.VectorMath;
 import volume.GradientVolume;
 import volume.Volume;
 import volume.VoxelGradient;
+import java.util.Arrays;
 
 import java.awt.Color;
+import java.util.Vector;
 
 
 /**
@@ -220,10 +223,10 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
 
     int traceRayIso(double[] entryPoint, double[] exitPoint, double[] rayVector, double sampleStep) {
 
-        // double[] lightVector = new double[3];
+        double[] lightVector = new double[3];
         //We define the light vector as directed toward the view point (which is the source of the light)
         // another light vector would be possible
-        // VectorMath.setVector(lightVector, rayVector[0], rayVector[1], rayVector[2]);
+        VectorMath.setVector(lightVector, rayVector[0], rayVector[1], rayVector[2]);
 
         // To be Implemented
 
@@ -253,8 +256,20 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
             isoThreshold = value - iso_value;
 
             if (isoThreshold >= 0) {
+                //get more accurate position with bisection accuracy:
+                double minSampleStep = 0.01;
+                currentPos = bisection_accuracy(currentPos, increments, minSampleStep, value, iso_value);
                 // isoColor contains the isosurface color from the interface
                 r = isoColor.r;g = isoColor.g;b =isoColor.b;alpha =1.0;
+                if (shadingMode) {
+                    //compute phong shading
+                    TFColor currentColor = new TFColor(r, g, b, alpha);
+                    VoxelGradient voxGrad = gradients.getGradient(currentPos);
+                    TFColor phongColor = computePhongShading(currentColor, voxGrad, lightVector, rayVector);
+                    r = phongColor.r;
+                    g = phongColor.g;
+                    b = phongColor.b;
+                }
                 break;
             }
             for (int i = 0; i < 3; i++) {
@@ -275,10 +290,38 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
     // Given the current sample position, increment vector of the sample (vector from previous sample to current sample) and sample Step. 
    // Previous sample value and current sample value, isovalue value
     // The function should search for a position where the iso_value passes that it is more precise.
-   void  bisection_accuracy (double[] currentPos, double[] increments,double sampleStep, float previousvalue,float value, float iso_value)
+    //to get speedup decrease the sample step in all functions implementing the bisection_accuracy function, !care! increasing the sample step size could cause the point of interest to be overseen
+   double[] bisection_accuracy (double[] currentPos, double[] increments, double minSampleStep, double value, float iso_value)
    {
+       //get value halfway between currentPos and currentPos-increments
+       VectorMath.setVector(increments, increments[0] / 2, increments[1] / 2, increments[2] / 2);
 
-           // to be implemented
+       //set currentPos halfway between previousPos and currentPos
+       double[] maxPos = currentPos;
+       for (int i = 0; i < 3; i++) {
+           currentPos[i] -= increments[i];
+       }
+
+       //once the step is small enough, return the found position
+       if(increments[0] < minSampleStep){
+           //return value
+           return currentPos;
+       }
+
+       //get value at mid point
+       value = volume.getVoxelLinearInterpolate(currentPos);
+
+       //mid value >= isovalue - > go left (smaller values)
+       if(value >= iso_value){
+           return bisection_accuracy(currentPos, increments, minSampleStep, value, iso_value);
+       }
+
+       //mid value < iso_value -> go right (larger values)
+       if(value < iso_value){
+           return bisection_accuracy(maxPos, increments, minSampleStep, value, iso_value);
+       }
+       //should reach this line
+       return currentPos;
    }
 
     //calculate compositing value
@@ -378,9 +421,10 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
             opacity = 1;      
         }
         if (shadingMode) {
+//TODO implement
             // Shading mode on
             voxel_color.r = 1;voxel_color.g =0;voxel_color.b =1;voxel_color.a =1;
-            opacity = 1;     
+            opacity = 1;
         }
 
 
@@ -402,12 +446,63 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
     TFColor computePhongShading(TFColor voxel_color, VoxelGradient gradient, double[] lightVector,
             double[] rayVector) {
 
-        // To be implemented 
-        
-        TFColor color = new TFColor(0,0,0,1);
-        
-        
-        return color;
+        float ka = 0.1f;
+        float kd = 0.7f;
+        float ks = 0.2f;
+        float a = 100;
+
+
+        //NEW version from WIKI
+
+        //intensity = ka*ia + kd*(L^ dot N^ )*id + ks*(r^ dot v^)^a*is;
+        float ir =  (float) voxel_color.r;
+        float ig = (float) voxel_color.g;
+        float ib = (float) voxel_color.b;
+
+        float[] toLight = {(float) -lightVector[0], (float) -lightVector[1], (float) -lightVector[2]};
+        float[] toLightN = VectorUtil.normalizeVec3(toLight);
+
+        float[] toView = {(float) -rayVector[0], (float) - rayVector[1], (float) -rayVector[2]};
+        float[] toViewN = VectorUtil.normalizeVec3(toView);
+
+        float[] normal = {-gradient.x, -gradient.y, -gradient.z};
+        float[] normalN = VectorUtil.normalizeVec3(normal);
+
+
+        //compute light reflection
+        float[] scaled = new float[3];
+        float dotp = VectorUtil.dotVec3(toLightN, normalN);
+        VectorUtil.scaleVec3(scaled, normalN, 2*dotp);
+        float[] rN = new float[3];
+        VectorUtil.subVec3(rN, scaled, toLightN);
+
+        float r_ambient = ka * ir;
+        float g_ambient = ka * ig;
+        float b_ambient = ka * ib;
+
+        //check if normal is in correct direction
+        if(Math.toDegrees(VectorUtil.angleVec3(toLight, normal)) >= 90){
+            return new TFColor(r_ambient,g_ambient,b_ambient,1);
+        }
+
+        float r_diffuse = kd * VectorUtil.dotVec3(toLightN, normalN) * ir;
+        float g_diffuse = kd * VectorUtil.dotVec3(toLightN, normalN) * ig;
+        float b_diffuse = kd * VectorUtil.dotVec3(toLightN, normalN) * ib;
+
+        float specPow =  (float) Math.pow(VectorUtil.dotVec3(rN, toViewN), a);
+        float r_specular = ks * specPow * ir;
+        float g_specular = ks * specPow * ig;
+        float b_specular = ks * specPow * ib;
+
+
+        double newColorR = r_ambient + r_diffuse + r_specular;
+        double newColorG = g_ambient + g_diffuse + g_specular;
+        double newColorB = b_ambient + b_diffuse + b_specular;
+
+        TFColor resultColor = new TFColor(newColorR,newColorG,newColorB,1);
+
+        return resultColor;
+        //END new vistion from WIKI
     }
 
     //if interactive mode is on then lower the resolution
