@@ -4,6 +4,9 @@
  */
 package volume;
 
+import com.jogamp.opengl.math.VectorUtil;
+import util.VectorMath;
+
 /**
  *
  * @author michel and modified by Anna Vilanova 
@@ -93,6 +96,8 @@ public class GradientVolume {
         voxGrad.x = gx;
         voxGrad.y = gy;
         voxGrad.z = gz;
+        double[] magVect = {(double) gx, (double) gy, (double) gz};
+        voxGrad.mag = (float) VectorMath.length(magVect);
         return voxGrad;
     }
     
