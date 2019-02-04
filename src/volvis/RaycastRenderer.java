@@ -405,11 +405,12 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
             colorAux.a = computeOpacity2DTF(1, 1, intValue, gradients.getGradient(currentPos).mag);
         }
         VoxelGradient voxGrad = gradients.getGradient(currentPos);
-
         //if phong shading is active then compute phong shaded color value
         if(shade)
             colorAux = computePhongShading(colorAux, voxGrad, lightVector, rayVector);
-
+	if(twoD){//compute opacity with 2d transfer function
+            colorAux.a = computeOpacity2DTF(1, 1, intValue, gradients.getGradient(currentPos).mag);
+        }
         //move forwards along the ray
         for (int i = 0; i < 3; i++) {
             currentPos[i] += increments[i];
